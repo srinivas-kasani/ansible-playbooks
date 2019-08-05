@@ -1,0 +1,153 @@
+Install ansible on Ubuntu
+=======================
+sudo apt-get update
+
+
+sudo apt-add-repository ppa:ansible/ansible
+sudo apt-get update
+sudo apt-get install ansible
+
+//check ansible version
+ansible --version
+
+//create dir and open
+mkdir ansible-repo
+cd ansible-repo
+mkdir komodo
+cd komodo
+mkdir exercise1	
+cd exercise1
+
+//create new user ansadm
+sudo useradd -d /home/ansadm -m ansadm
+sudo passwd ansadm 
+
+//make password as non expiry
+sudo passwd -x -1 ansadm
+(Repeat the same steps on every server)
+
+Generate the keys to communicate to each server
+==============================================
+sudo su ansadm // su - ansadm
+ssh-keygen -t rsa
+copy the key and setup on client ( cat /home/ansadm/.ssh/id_rsa.pub)
+
+
+setup key on client
+==================
+su - ansadm
+mkdir .ssh
+chmod 700 .ssh
+chown ansadm:ansadm .ssh
+cd .ssh
+
+vi authorized_keys // past the secure key and Save
+chown ansadm:ansadm authorized_keys
+chmod 600 authorized_keys
+
+From controller and node details in hosts file as root
+============================================
+vi /etc/hosts
+IP Name
+ssh Name ( to verfiy the connectivity)
+===========================================================================================================
+
+
+//change the ownership of /etc/ansible 
+as root
+chown -R ansadm:ansadm /etc/ansible
+
+vi /etc/ansible/hosts
+[appgroup]
+node
+
+/etc/ansible/ansible.cfg is main configuration - open and verify just FYI...
+
+//List the available modules
+ansible-doc -l | more
+
+// to get the details about any module
+ansible-doc -s yum
+
+// use ping module
+ansible appgroup -m ping
+ansible all -m shell -a "uname;free"
+ansible all -m apt -a "name=apache2 state=present"
+ansible all -m service -a "name=apache2 state=started enabled=yes"
+ansible all -m service -a "name=apache2 state=stopped enabled=no"
+ansible all -m copy -a "src=/home/naren/payment.war dest=/opt/apps/payment.war mode=0644"
+
+//to add ansadm have root priviliges, go to client and add the following line in /etc/sudoers
+##ANSIBLE ADMIN User
+ansadm ALL=NOPASSWD: ALL
+
+//to install HTTPD on centos/redhat
+ansible -i inv-cent -m yum -a "name=httpd state=installed" --become web
+
+//to start HTTPD on centos/redhat
+ansible -i inv-cent -m service -a "name=httpd state=started enabled=yes" --become web
+(incase if httpd is not accessable we may need to off the firewall)
+ansible -i inv-cent -m service -a "name=iptables state=stopped enabled=no" --become web
+
+//write our own index file
+vi index.html - write your own content
+copy index file to all servers
+ansible -i inv-cent -m copy -a "src=index.html dest=/var/www/html/index.html mode=0644" --become web
+
+//write our own ansible.cfg ( when you define inventory file here you dont need to mention in the command when you run as a individual module)
+vi ansible.cfg
+[defaults]
+host_key_check=false
+inventory=inv-cent
+
+//how to remove httpd
+ansible -i inv-cent -m yum -a "name=httpd state=absent" --become web
+
+//write first YML file
+vi web.yml
+=========
+
+---
+- hosts: web
+  become: yes
+  tasks:
+         - name: ensure apache is installed
+           yum: name=httpd state=installed
+
+         - name: start httpd
+           service: name=httpd state=started enabled=yes
+
+vi db.yml
+=======
+---
+- hosts: web
+  become: yes
+  tasks:
+         - name: Download sources
+           get_url: url=http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm dest=/opt/mysql/
+
+         - name: Install package
+           yum: name=/opt/mysql/mysql-community-release-el7-5.noarch.rpm state=present
+
+
+         - name: Install MySQL
+           yum: name=mysql-server state=installed
+
+
+
+//update packages on client
+ansible all -m shell -a "yum update" -s
+
+//install nging package on client
+ansible appgroup -m yum -a "name=epel-release state=installed/present" -s
+ansible appgroup -m yum -a "name=nginx state=installed/present" -s
+
+//incase nginx is not stated, we can do from controller
+ansible appgroup -m service -a "name=nginx state=started" -s
+
+
+
+
+
+
+
